@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from time import monotonic, sleep
 from typing import Optional, Tuple
 
@@ -35,9 +35,20 @@ STALE_WARNING_SECONDS = 15 * 60
 
 def get_current_track(sp) -> Optional[dict]:
     current_track = sp.currently_playing(additional_types=["episode"])
-    if current_track and current_track["is_playing"]:
+    # Ads and other undescribed content report is_playing with item: null.
+    if (
+        current_track
+        and current_track["is_playing"]
+        and current_track.get("item") is not None
+    ):
         return current_track
     return None
+
+
+def song_time(track: dict) -> tuple[int, int]:
+    """(minutes, seconds) of playback progress; progress_ms can be null."""
+    seconds = int((track.get("progress_ms") or 0) / 1000)
+    return seconds // 60, seconds % 60
 
 
 def data_from_track(track: dict, sp) -> dict:
@@ -224,22 +235,18 @@ def main():
                     track
                     and last_track_data["uri"] != data_from_track(track, sp)["uri"]
                 ):
-                    song_td = timedelta(seconds=last_track["progress_ms"] / 1000)
-                    song_time = int(song_td.seconds / 60), int(song_td.seconds % 60)
                     print_statusline(
                         "Track ended ({}:{:02d}): {title} - {artist} ({album})\n".format(
-                            *song_time, **last_track_data
+                            *song_time(last_track), **last_track_data
                         )
                     )
 
             if track:
                 track_data = data_from_track(track, sp)
-                song_td = timedelta(seconds=track["progress_ms"] / 1000)
-                song_time = int(song_td.seconds / 60), int(song_td.seconds % 60)
 
                 print_statusline(
                     "Current track ({}:{:02d}): {title} - {artist} ({album})".format(
-                        *song_time, **track_data
+                        *song_time(track), **track_data
                     )
                 )
 

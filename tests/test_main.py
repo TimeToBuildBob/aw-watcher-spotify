@@ -83,5 +83,22 @@ class PollingTests(unittest.TestCase):
         auth.assert_called_once_with("alice", "client-id", "client-secret")
 
 
+class TrackParsingTests(unittest.TestCase):
+    def test_ad_without_item_is_not_a_track(self):
+        # During ads Spotify reports is_playing with item: null.
+        spotify = Mock()
+        spotify.currently_playing.return_value = {
+            "is_playing": True,
+            "item": None,
+            "currently_playing_type": "ad",
+        }
+        self.assertIsNone(watcher_main.get_current_track(spotify))
+
+    def test_song_time_tolerates_null_progress(self):
+        # progress_ms "can be null" per the Web API docs; it must not abort the heartbeat.
+        self.assertEqual(watcher_main.song_time({"progress_ms": None}), (0, 0))
+        self.assertEqual(watcher_main.song_time({"progress_ms": 125_000}), (2, 5))
+
+
 if __name__ == "__main__":
     unittest.main()
